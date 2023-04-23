@@ -7,11 +7,23 @@ import pyaudio
 import os
 from pathlib import Path
 import requests
+import pandas as pd
+
+hide_st_style = """
+            <style>
+            
+            footer {visibility: hidden;}
+            
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
 
 # Session state
 if 'text' not in st.session_state:
 	st.session_state['text'] = 'Listening...'
 	st.session_state['run'] = False
+	st.session_state['transcriptions'] = []
+	# st.session_state['selected_message'] = None
 
 # Audio parameters 
 st.sidebar.header('Audio Parameters')
@@ -71,8 +83,7 @@ def translate_text(text):
         response_json = response.json()
         print("Response JSON:", response_json)  # Print the response JSON
         translated_text = response_json["result"]
-        print("______________________________________")
-        print(translate_text)
+    
 	
         return translated_text
     else:
@@ -82,6 +93,7 @@ def translate_text(text):
 
 # Web user interface
 st.title('🎙️ Real-Time Transcription App')
+
 
 with st.expander('About this App'):
 	st.markdown('''
@@ -94,6 +106,32 @@ with st.expander('About this App'):
 	- `base64` - encode/decode audio data
 	- `json` - allows reading of audio output in JSON format
 	''')
+
+
+
+with st.sidebar:
+    st.header("Transcription")
+    if st.button("Show Transcription"):
+        st.session_state["show_transcription"] = not st.session_state.get("show_transcription", False)
+
+if st.session_state.get("show_transcription", False):
+    st.header("Transcriptions")
+    
+    # Combine all Kinyarwanda transcriptions into one paragraph
+    kinyarwanda_paragraph = ' '.join([row['Kinyarwanda'] for row in st.session_state['transcriptions']])
+    
+    # Display the combined Kinyarwanda paragraph with a slightly larger font size
+    st.markdown(f'<p style="font-size: 1.25em">{kinyarwanda_paragraph}</p>', unsafe_allow_html=True)
+    
+    transcriptions_df = pd.DataFrame(st.session_state['transcriptions'], columns=["English", "Kinyarwanda"])
+    st.write(transcriptions_df.style.set_table_styles([
+        {'selector': 'th', 'props': [('background', '#f2f2f2'), ('color', 'black'), ('font-weight', 'bold'), ('text-align', 'center')]},
+        {'selector': 'td', 'props': [('background', '#f9f9f9'), ('color', 'black'), ('text-align', 'center')]},
+        {'selector': 'tr:nth-of-type(odd)', 'props': [('background', '#ffffff')]},
+        {'selector': 'tr:nth-of-type(even)', 'props': [('background', '#f9f9f9')]},
+    ]))
+
+
 
 col1, col2 = st.columns(2)
 
@@ -124,9 +162,6 @@ async def send_receive():
 		async def send():
 			while st.session_state['run']:
 				try:
-					# if not (stream.is_active() and not stream.is_stopped()):
-					# 	print("Stream is closed, stopping send loop")
-					# 	break
 					data = stream.read(FRAMES_PER_BUFFER)
 					data = base64.b64encode(data).decode("utf-8")
 					json_data = json.dumps({"audio_data":str(data)})
@@ -137,13 +172,10 @@ async def send_receive():
 					if e.code != 4008:
 						break
 						
-					# assert e.code == 4008
-					# break
 
 				except Exception as e:
 					print(f"Unexpected error: {type(e).__name__}: {e}")
-					# assert False, "Not a websocket 4008 error"
-
+					
 				r = await asyncio.sleep(0.01)
 		# 
 
@@ -158,6 +190,9 @@ async def send_receive():
 						print(result)
 						translated_result = translate_text(result)
 						st.session_state['text'] = translated_result
+						st.session_state['transcriptions'].append({"English": result, "Kinyarwanda": st.session_state['text']})
+
+					
 						# st.session_state['text'] = result
 						if st.session_state['text'] != 'Listening...':
 							st.write(st.session_state['text'])
