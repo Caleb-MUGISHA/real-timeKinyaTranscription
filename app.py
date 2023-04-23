@@ -7,7 +7,6 @@ import pyaudio
 import os
 from pathlib import Path
 import requests
-import aiohttp
 
 # Session state
 if 'text' not in st.session_state:
@@ -21,6 +20,9 @@ FRAMES_PER_BUFFER = int(st.sidebar.text_input('Frames per buffer', 3200))
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = int(st.sidebar.text_input('Rate', 16000))
+# RATE = st.sidebar.number_input('Sample rate', min_value=1, max_value=96000, value=16000)
+# FRAMES_PER_BUFFER = st.sidebar.slider('Frames per buffer', min_value=64, max_value=8192, value=1024, step=64)
+
 p = pyaudio.PyAudio()
 
 # Open an audio stream with above parameter settings
@@ -55,7 +57,7 @@ def translate_text(text):
         "platform": "api",
         "from":"en_GB",
         "to": "rw_RW",
-        "text": response_json
+        "text": text
     }
     headers = {
         "accept": "application/json",
@@ -68,11 +70,15 @@ def translate_text(text):
     if response.status_code == 200:
         response_json = response.json()
         print("Response JSON:", response_json)  # Print the response JSON
-        translated_text = response_json["translation"]
+        translated_text = response_json["result"]
+        print("______________________________________")
+        print(translate_text)
+	
         return translated_text
     else:
         print(f"Translation Error: {response.status_code}, {response.text}")
         return text
+
 
 # Web user interface
 st.title('🎙️ Real-Time Transcription App')
@@ -119,6 +125,9 @@ async def send_receive():
 		async def send():
 			while st.session_state['run']:
 				try:
+					if not (stream.is_active() and not stream.is_stopped()):
+						print("Stream is closed, stopping send loop")
+						break
 					data = stream.read(FRAMES_PER_BUFFER)
 					data = base64.b64encode(data).decode("utf-8")
 					json_data = json.dumps({"audio_data":str(data)})
@@ -126,12 +135,15 @@ async def send_receive():
 
 				except websockets.exceptions.ConnectionClosedError as e:
 					print(e)
-					assert e.code == 4008
-					break
+					if e.code != 4008:
+						break
+						
+					# assert e.code == 4008
+					# break
 
 				except Exception as e:
-					print(e)
-					assert False, "Not a websocket 4008 error"
+					print(f"Unexpected error: {type(e).__name__}: {e}")
+					# assert False, "Not a websocket 4008 error"
 
 				r = await asyncio.sleep(0.01)
 		# 
