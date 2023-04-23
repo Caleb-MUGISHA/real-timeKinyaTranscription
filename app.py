@@ -16,7 +16,7 @@ if 'text' not in st.session_state:
 # Audio parameters 
 st.sidebar.header('Audio Parameters')
 
-FRAMES_PER_BUFFER = int(st.sidebar.text_input('Frames per buffer', 3200))
+FRAMES_PER_BUFFER = int(st.sidebar.text_input('Frames per buffer', 16384))
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = int(st.sidebar.text_input('Rate', 16000))
@@ -85,15 +85,14 @@ st.title('🎙️ Real-Time Transcription App')
 
 with st.expander('About this App'):
 	st.markdown('''
-	This Streamlit app uses the AssemblyAI API to perform real-time transcription.
+	This Streamlit that performs real-time transcription from English Speech to Kinyarwanda Text.
 	
 	Libraries used:
 	- `streamlit` - web framework
 	- `pyaudio` - a Python library providing bindings to [PortAudio](http://www.portaudio.com/) (cross-platform audio processing library)
-	- `websockets` - allows interaction with the API
 	- `asyncio` - allows concurrent input/output processing
 	- `base64` - encode/decode audio data
-	- `json` - allows reading of AssemblyAI audio output in JSON format
+	- `json` - allows reading of audio output in JSON format
 	''')
 
 col1, col2 = st.columns(2)
@@ -125,9 +124,9 @@ async def send_receive():
 		async def send():
 			while st.session_state['run']:
 				try:
-					if not (stream.is_active() and not stream.is_stopped()):
-						print("Stream is closed, stopping send loop")
-						break
+					# if not (stream.is_active() and not stream.is_stopped()):
+					# 	print("Stream is closed, stopping send loop")
+					# 	break
 					data = stream.read(FRAMES_PER_BUFFER)
 					data = base64.b64encode(data).decode("utf-8")
 					json_data = json.dumps({"audio_data":str(data)})
